@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Ultimate Runner</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+body{margin:0;overflow:hidden;background:#0a0a0a;font-family:Arial}
+canvas{display:block}
+
+#menu,#shop,#gameover{
+position:absolute;top:0;left:0;width:100%;height:100%;
+background:rgba(0,0,0,.85);color:#fff;
+display:flex;flex-direction:column;
+align-items:center;justify-content:center;z-index:10
+}
+button{padding:12px 25px;font-size:18px;margin:8px}
+
+#ui{
+position:absolute;top:10px;width:100%;
+display:flex;justify-content:space-between;
+padding:0 15px;color:#fff;font-size:16px
+}
+
+.controls{
+position:absolute;bottom:20px;width:100%;
+display:flex;justify-content:space-between;
+padding:0 40px;z-index:5
+}
+.btn{
+width:70px;height:70px;border-radius:50%;
+background:rgba(255,255,255,.25);
+text-align:center;line-height:70px;
+font-size:40px;user-select:none
+}
+</style>
+</head>
+
+<body>
+
+<div id="menu">
+<h1>🚗 Ultimate Runner</h1>
+<button onclick="startGame()">Start Game</button>
+<button onclick="openShop()">Shop</button>
+</div>
+
+<div id="shop" style="display:none">
+<h2>🛒 Shop</h2>
+<button onclick="selectVehicle('car')">🚗 Car (Free)</button>
+<button onclick="selectVehicle('bike')">🏍 Bike (20 ⭐)</button>
+<button onclick="selectVehicle('jet')">✈️ Jet (50 ⭐)</button>
+<button onclick="closeShop()">Back</button>
+</div>
+
+<div id="gameover" style="display:none">
+<h1>Game Over</h1>
+<button onclick="location.reload()">Restart</button>
+</div>
+
+<div id="ui">
+<div>
+Score: <span id="score">0</span><br>
+High: <span id="high">0</span>
+</div>
+<div>
+Coins: <span id="coins">0</span><br>
+Stars: <span id="stars">0</span>
+</div>
+</div>
+
+<div class="controls">
+<div class="btn" id="leftBtn">⬅️</div>
+<div class="btn" id="rightBtn">➡️</div>
+</div>
+
+<canvas id="game"></canvas>
+
+<script>
+const c=document.getElementById("game");
+const ctx=c.getContext("2d");
+c.width=innerWidth;c.height=innerHeight;
+
+let running=false;
+let score=0,coins=0,stars=0;
+let high=localStorage.getItem("high")||0;
+document.getElementById("high").innerText=high;
+
+let speed=4,shield=false,shieldTime=0;
+let lastScore=Date.now(),lastSpeed=Date.now();
+
+let vehicle="car";
+let left=false,right=false;
+
+const player={x:c.width/2,y:c.height-130,w:50,h:80};
+const obstacles=[],items=[],sparks=[],bg=[];
+
+/* CONTROLS */
+leftBtn.onmousedown=()=>left=true;
+leftBtn.onmouseup=()=>left=false;
+rightBtn.onmousedown=()=>right=true;
+rightBtn.onmouseup=()=>right=false;
+leftBtn.ontouchstart=()=>left=true;
+leftBtn.ontouchend=()=>left=false;
+rightBtn.ontouchstart=()=>right=true;
+rightBtn.ontouchend=()=>right=false;
+
+/* MENU */
+function startGame(){
+document.getElementById("menu").style.display="none";
+running=true;loop();
+}
+function openShop(){
+document.getElementById("menu").style.display="none";
+document.getElementById("shop").style.display="flex";
+}
+function closeShop(){
+document.getElementById("shop").style.display="none";
+document.getElementById("menu").style.display="flex";
+}
+function selectVehicle(v){
+vehicle=v;
+closeShop();
+}
+
+/* SPAWN */
+setInterval(()=>{
+obstacles.push({
+x:Math.random()*(c.width-60),
+y:-60,w:40+Math.random()*40,
+h:40+Math.random()*40,
+color:`hsl(${Math.random()*360},80%,50%)`
+});
+},1200);
+
+setInterval(()=>items.push({x:Math.random()*c.width,y:-20,t:"coin"}),1800);
+setInterval(()=>items.push({x:Math.random()*c.width,y:-20,t:"star"}),6000);
+setInterval(()=>items.push({x:Math.random()*c.width,y:-20,t:"shield"}),9000);
+
+/* LOOP */
+function loop(){
+if(!running)return;
+requestAnimationFrame(loop);
+ctx.clearRect(0,0,c.width,c.height);
+
+/* SCORE */
+if(Date.now()-lastScore>=1000){
+score++;coins+=5;
+if(score%10==0)stars+=3;
+lastScore=Date.now();
+}
+
+/* SPEED */
+if(Date.now()-lastSpeed>=10000){
+speed+=0.8;lastSpeed=Date.now();
+}
+
+/* PLAYER */
+if(left&&player.x>0)player.x-=6;
+if(right&&player.x+player.w<c.width)player.x+=6;
+
+/* VEHICLE DRAW */
+ctx.fillStyle=vehicle==="jet"?"#0ff":vehicle==="bike"?"#ff0":"#0f0";
+ctx.fillRect(player.x,player.y,player.w,player.h);
+
+/* SPARKS */
+sparks.push({x:player.x+player.w/2,y:player.y+player.h});
+sparks.forEach((s,i)=>{
+ctx.fillStyle="orange";
+ctx.fillRect(s.x,s.y,3,6);
+s.y+=5;if(s.y>c.height)sparks.splice(i,1);
+});
+
+/* OBSTACLES */
+obstacles.forEach((o,i)=>{
+o.y+=speed;
+ctx.fillStyle=o.color;
+ctx.fillRect(o.x,o.y,o.w,o.h);
+if(o.y>c.height)obstacles.splice(i,1);
+
+if(!shield &&
+o.x<player.x+player.w &&
+o.x+o.w>player.x &&
+o.y<player.y+player.h &&
+o.y+o.h>player.y){
+gameOver();
+}
+});
+
+/* ITEMS */
+items.forEach((it,i)=>{
+it.y+=speed;
+ctx.fillStyle=it.t==="coin"?"gold":it.t==="star"?"violet":"cyan";
+ctx.beginPath();ctx.arc(it.x,it.y,10,0,Math.PI*2);ctx.fill();
+if(it.y>c.height)items.splice(i,1);
+
+if(it.x>player.x&&it.x<player.x+player.w&&
+it.y>player.y&&it.y<player.y+player.h){
+if(it.t==="coin")coins+=5;
+if(it.t==="star")stars+=1;
+if(it.t==="shield"){shield=true;shieldTime=Date.now();}
+items.splice(i,1);
+}
+});
+
+/* SHIELD TIMER */
+if(shield && Date.now()-shieldTime>5000)shield=false;
+
+/* UI */
+scoreEl.innerText=score;
+coinsEl.innerText=coins;
+starsEl.innerText=stars;
+}
+
+/* GAME OVER */
+function gameOver(){
+running=false;
+document.getElementById("gameover").style.display="flex";
+if(score>high)localStorage.setItem("high",score);
+}
+</script>
+
+</body>
+</html>
