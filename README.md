@@ -1,1 +1,1 @@
-# Game2.html
+# block endless game.html
